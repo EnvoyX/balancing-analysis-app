@@ -684,7 +684,7 @@ class DeviceModel:
                     # CRC verification
                     tempCrc = self.get_crc(self.TempBytes, tLen - 2)
                     if (tempCrc >> 8) == self.TempBytes[tLen - 2] and (
-                        tempCrc & 0xFF
+                            tempCrc & 0xFF
                     ) == self.TempBytes[tLen - 1]:
                         self.processData(self.TempBytes[2])
                     else:
@@ -804,7 +804,7 @@ class DeviceModel:
     def loopRead(self):
         print("Loop reading started")
         while self.loop:
-            self.readReg(0x3A, 13)
+            self.readReg(0x34, 19)  # Able to read 19 register sequentially from 0x34 (52) to 0x46 (70)
             time.sleep(0.2)
         print("Loop reading stopped")
 

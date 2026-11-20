@@ -57,7 +57,10 @@ time.sleep(0.5)
 while True:
     # v: vibration velocity | a: vibration angle | t: temperature | s: vibration displacement | f: vibration frequency
     print(
-        "vx:{} vy:{} vz:{} ax:{} ay:{} az:{} t:{} sx:{} sy:{} sz:{} fx:{} fy:{} fz:{} AX:{} AY:{} AZ:{}".format(
+        "AX:{} AY:{} AZ:{} vx:{} vy:{} vz:{} ax:{} ay:{} az:{} t:{} sx:{} sy:{} sz:{} fx:{} fy:{} fz:{}".format(
+            device.get("52"),
+            device.get("53"),
+            device.get("54"),
             device.get("58"),
             device.get("59"),
             device.get("60"),
@@ -71,9 +74,6 @@ while True:
             device.get("68"),
             device.get("69"),
             device.get("70"),
-            device.get("34"),
-            device.get("35"),
-            device.get("36"),
         )
     )
     time.sleep(0.2)
