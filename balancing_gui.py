@@ -4,8 +4,47 @@ from tkinter import ttk, messagebox
 import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-
+import serial
 import device_model
+
+# adopted from my set_baudrate.py for GUI
+BAUD_CODES = {
+    4800: "50 06 00 04 00 01 04 4A",
+    9600: "50 06 00 04 00 02 44 4B",
+    19200: "50 06 00 04 00 03 85 8B",
+    38400: "50 06 00 04 00 04 C4 49",
+    57600: "50 06 00 04 00 05 05 89",
+    115200: "50 06 00 04 00 06 45 88",
+    230400: "50 06 00 04 00 07 84 48",
+}
+
+# these save & unlock command hex are from WTVB01-485 User's Guide
+UNLOCK_CMD = bytes.fromhex("50 06 00 69 B5 88 22 A1")
+SAVE_CMD = bytes.fromhex("50 06 00 00 00 00 84 44")
+
+
+def change_sensor_baudrate(port: str, current_baud: int, target_baud: int):
+    """
+    changes baud rate sensor WTVB01-485 dan save it to memory flash.
+    """
+    if target_baud not in BAUD_CODES:
+        raise ValueError(f"Baud rate {target_baud} is not supported by the sensor.")
+
+    with serial.Serial(port, current_baud, timeout=0.5) as ser:
+        # unlock register (valid for 10s)
+        ser.write(UNLOCK_CMD)
+        time.sleep(0.1)
+
+        # send the code of the target baud rate to register 0x04
+        ser.write(bytes.fromhex(BAUD_CODES[target_baud]))
+        time.sleep(0.1)
+
+    # unlock it again with new baud rate then send command SAVE (register 0x00) so that the setting is saved permanently
+    with serial.Serial(port, target_baud, timeout=0.5) as ser_new:
+        ser_new.write(UNLOCK_CMD)
+        time.sleep(0.1)
+        ser_new.write(SAVE_CMD)
+        time.sleep(0.1)
 
 
 class FourRunBalancingApp:
@@ -18,7 +57,7 @@ class FourRunBalancingApp:
         self.is_connected = False
         self.is_capturing = False
 
-        # store captured results for Runs 0, 1, 2, 3
+        # store captured results for Runs 1, 2, 3, 4
         # each entry holds {"X": (amp, freq), "Y": (amp, freq), "Z": (amp, freq), "fs": float}
         self.run_results = [None, None, None, None]
         self.trial_angles = (0.0, 120.0, 240.0)
@@ -41,25 +80,44 @@ class FourRunBalancingApp:
 
         ttk.Label(conn_frame, text="COM Port:").grid(row=0, column=0, sticky="w", pady=2)
         self.port_var = tk.StringVar(value="COM7")
-        ttk.Entry(conn_frame, textvariable=self.port_var, width=10).grid(row=0, column=1, sticky="w", padx=4)
+        ttk.Entry(conn_frame, textvariable=self.port_var, width=9).grid(row=0, column=1, sticky="w", padx=4)
 
-        ttk.Label(conn_frame, text="Baud Rate:").grid(row=0, column=2, sticky="w", pady=2)
+        ttk.Label(conn_frame, text="Target Baud Rate:").grid(row=0, column=2, sticky="w", pady=2)
         self.baud_var = tk.StringVar(value="115200")
         ttk.Combobox(
-            conn_frame, textvariable=self.baud_var, values=["9600", "115200", "230400"], width=9, state="readonly"
+            conn_frame,
+            textvariable=self.baud_var,
+            values=["4800", "9600", "19200", "38400", "57600", "115200", "230400"],
+            width=9,
+            state="readonly",
         ).grid(row=0, column=3, sticky="w", padx=4)
 
+        ttk.Label(conn_frame, text="Initial Baud Rate:").grid(row=1, column=0, sticky="w", pady=3)
+        self.init_baud_var = tk.StringVar(value="9600")
+        ttk.Combobox(
+            conn_frame,
+            textvariable=self.init_baud_var,
+            values=["9600", "115200", "4800", "19200", "38400", "57600", "230400"],
+            width=8,
+            state="readonly",
+        ).grid(row=1, column=1, sticky="w", padx=4)
+
+        self.set_baud_btn = ttk.Button(
+            conn_frame, text="Set & Save Baud Rate", command=self._handle_set_baudrate
+        )
+        self.set_baud_btn.grid(row=1, column=2, columnspan=2, sticky="ew", padx=4, pady=3)
+
         self.conn_btn = ttk.Button(conn_frame, text="Connect", command=self._toggle_connection)
-        self.conn_btn.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(6, 2), padx=(0, 4))
+        self.conn_btn.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 2), padx=(0, 4))
 
         self.status_var = tk.StringVar(value="Status: Disconnected")
         ttk.Label(conn_frame, textvariable=self.status_var, foreground="gray").grid(
-            row=1, column=2, columnspan=2, sticky="w", pady=(6, 2)
+            row=2, column=2, columnspan=2, sticky="w", pady=(4, 2)
         )
 
         self.live_readout_var = tk.StringVar(value="Live Accel: AX=---  AY=---  AZ=---")
         ttk.Label(conn_frame, textvariable=self.live_readout_var, font=("Consolas", 9)).grid(
-            row=2, column=0, columnspan=4, sticky="w", pady=(4, 0)
+            row=3, column=0, columnspan=4, sticky="w", pady=(4, 0)
         )
 
         # section Rotor & FFT Parameters
@@ -101,10 +159,10 @@ class FourRunBalancingApp:
         run_frame.pack(fill=tk.X, pady=(0, 8))
 
         run_labels = [
-            "Capture Run 0 (Initial - No Trial Mass)",
-            "Capture Run 1 (Trial Mass @ 0°)",
-            "Capture Run 2 (Trial Mass @ 120°)",
-            "Capture Run 3 (Trial Mass @ 240°)",
+            "Capture Run 1 (Initial - No Trial Mass)",
+            "Capture Run 2 (Trial Mass @ 0°)",
+            "Capture Run 3 (Trial Mass @ 120°)",
+            "Capture Run 4 (Trial Mass @ 240°)",
         ]
         self.run_btns = []
         for idx, text in enumerate(run_labels):
@@ -148,7 +206,7 @@ class FourRunBalancingApp:
 
         result_rows = [
             ("Unbalance Location:", "unbal_loc"),
-            ("Initial Unbalance (U0):", "init_unbal"),
+            ("Initial Unbalance:", "init_unbal"),
             ("Residual Unbalance (Est.):", "res_unbal"),
             ("Correction Mass Position:", "corr_pos"),
             ("Correction Mass & Weight:", "corr_mass"),
@@ -189,6 +247,34 @@ class FourRunBalancingApp:
         self.ax_polar.set_title("Four-Run Vector Diagram\n(Awaiting 4 Runs)", fontsize=9.5, pad=14)
 
     # serial connection & non-blocking live readout loop
+    def _handle_set_baudrate(self):
+        """
+        change baud rate of the sensor (i.e 9600 -> 115200) directly from GUI
+        """
+        if self.is_connected:
+            messagebox.showwarning(
+                "Sensor is still connected",
+                "Click 'Disconnect' first before changing the baud rate sensor.",
+            )
+            return
+
+        port = self.port_var.get().strip()
+        current_baud = int(self.init_baud_var.get())
+        target_baud = int(self.baud_var.get())
+
+        try:
+            self.status_var.set(f"Switching {current_baud} -> {target_baud}...")
+            self.root.update_idletasks()
+            change_sensor_baudrate(port, current_baud, target_baud)
+            self.status_var.set(f"Baud rate saved: {target_baud} bps")
+            messagebox.showinfo(
+                "Baud Rate changed sucessfully",
+                f"Sensor at {port} sucessfully changed from {current_baud} to {target_baud} bps dan saved to flash.\n\nYou may click 'Connect'.",
+            )
+        except Exception as e:
+            self.status_var.set("Failed to change baud rate")
+            messagebox.showerror("Baud Rate Error", f"Failed to change baud rate on {port}:\n{e}")
+
     def _toggle_connection(self):
         if not self.is_connected:
             port = self.port_var.get().strip()
@@ -199,6 +285,7 @@ class FourRunBalancingApp:
                 self.dev.startLoopRead()
                 self.is_connected = True
                 self.conn_btn.config(text="Disconnect")
+                self.set_baud_btn.config(state="disabled")
                 self.status_var.set(f"Connected ({port})")
                 self._poll_live_ui()
             else:
@@ -209,6 +296,7 @@ class FourRunBalancingApp:
                 self.dev.stopLoopRead()
                 self.dev.closeDevice()
             self.conn_btn.config(text="Connect")
+            self.set_baud_btn.config(state="normal")
             self.status_var.set("Disconnected")
             self.live_readout_var.set("Live Accel: AX=---  AY=---  AZ=---")
 
@@ -244,7 +332,7 @@ class FourRunBalancingApp:
             b.config(state="disabled")
 
         self.dev.clear_accel_buffer()
-        self.status_var.set(f"Recording Run {run_idx} ({duration:.1f}s)...")
+        self.status_var.set(f"Recording Run {run_idx + 1} ({duration:.1f}s)...")
 
         # schedule finish after `duration` seconds without freezing the GUI window
         self.root.after(int(duration * 1000), lambda: self._finish_capture(run_idx))
@@ -262,10 +350,10 @@ class FourRunBalancingApp:
 
         fft_res = self._compute_fft(samples)
         self.run_results[run_idx] = fft_res
-        self.status_var.set(f"Run {run_idx} done (fs={fft_res['fs']:.1f} Hz, N={fft_res['N']})")
+        self.status_var.set(f"Run {run_idx + 1} done (fs={fft_res['fs']:.1f} Hz, N={fft_res['N']})")
 
         self._refresh_table()
-        self._plot_fft(fft_res, f"Run {run_idx}")
+        self._plot_fft(fft_res, f"Run {run_idx + 1}")
         self._recalculate_if_ready()
 
     def _compute_fft(self, samples):
@@ -336,7 +424,7 @@ class FourRunBalancingApp:
     def _refresh_table(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
-        names = ["Run 0 (0)", "Run 1 (0°)", "Run 2 (120°)", "Run 3 (240°)"]
+        names = ["Run 1 (0)", "Run 2 (0°)", "Run 3 (120°)", "Run 4 (240°)"]
         axis_sel = self.axis_var.get()
         for idx, r in enumerate(self.run_results):
             if r is None:
@@ -367,14 +455,19 @@ class FourRunBalancingApp:
         axis = self.axis_var.get()
         V0, V1, V2, V3 = [r["axes"][axis]["max_g"] for r in self.run_results]
 
-        a1, a2, a3 = np.deg2rad(self.trial_angles)
-        A = np.array([
-            [1.0, np.cos(a1), np.sin(a1)],
-            [1.0, np.cos(a2), np.sin(a2)],
-            [1.0, np.cos(a3), np.sin(a3)],
-        ])
+        # a1, a2, a3 = np.deg2rad(self.trial_angles)
+        # A = np.array([
+        #     [1.0, np.cos(a1), np.sin(a1)],
+        #     [1.0, np.cos(a2), np.sin(a2)],
+        #     [1.0, np.cos(a3), np.sin(a3)],
+        # ])
+        # b = np.array([V1 ** 2 - V0 ** 2, V2 ** 2 - V0 ** 2, V3 ** 2 - V0 ** 2])
+        # x1, x2, x3 = np.linalg.solve(A, b)
+
+        angles_rad = np.deg2rad(self.trial_angles)
+        A = np.column_stack([np.ones_like(angles_rad), np.cos(angles_rad), np.sin(angles_rad)])
         b = np.array([V1 ** 2 - V0 ** 2, V2 ** 2 - V0 ** 2, V3 ** 2 - V0 ** 2])
-        x1, x2, x3 = np.linalg.solve(A, b)
+        x1, x2, x3 = np.linalg.lstsq(A, b, rcond=None)[0]
 
         E_circle = np.sqrt(max(x1, 0.0))
         E_vec = np.hypot(x2, x3) / (2.0 * V0) if V0 > 0 else E_circle
@@ -427,7 +520,8 @@ class FourRunBalancingApp:
             cy = -V0 * np.sin(np.deg2rad(ang))
             xs = cx + Vi * np.cos(phi)
             ys = cy + Vi * np.sin(phi)
-            self.ax_polar.plot(np.arctan2(ys, xs), np.hypot(xs, ys), color=col, lw=1.1, label=f"Run {idx} ({ang:.0f}°)")
+            self.ax_polar.plot(np.arctan2(ys, xs), np.hypot(xs, ys), color=col, lw=1.1,
+                               label=f"Run {idx + 1} ({ang:.0f}°)")
 
         tu = np.deg2rad(theta_u_deg)
         tc = np.deg2rad(theta_c_deg)
