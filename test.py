@@ -45,6 +45,12 @@ hex     dec     description
 """
 # endregion
 
+# before using the script, make sure to use
+# 1. CH340 driver download link:
+# https://drive.google.com/file/d/1JidopB42R9EsCzMAYC3Ya9eJ8JbHapRF/view?usp=drive_link
+# 2. Check sensor's port name (i.e "COM7")
+
+
 # Instantiate the device model
 # changed baud from 9600 to 115200  so that python able to collect at minimum 100 sample per second
 # change the baudrate in set_baudrate.py
@@ -75,7 +81,7 @@ while True:
     #         device.get("70"),
     #     )
     # )
-    # AX: Acceleration X | AY: Acceleration Y | AZ: Acceleration Z
+    # AX: Acceleration X | AY: Acceleration Y | AZ: Acceleration Z - modified from SDK
     print(
         "AX:{} AY:{} AZ:{}".format(
             device.get("52"),
