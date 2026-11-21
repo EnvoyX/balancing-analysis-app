@@ -46,7 +46,9 @@ hex     dec     description
 # endregion
 
 # Instantiate the device model
-device = device_model.DeviceModel("Laptop Device", "COM7", 9600, 0x50)
+# changed baud from 9600 to 115200  so that python able to collect at minimum 100 sample per second
+# change the baudrate in set_baudrate.py
+device = device_model.DeviceModel("Laptop Device", "COM7", 115200, 0x50)
 # Open the device
 device.openDevice()
 # Start loop polling
@@ -56,28 +58,32 @@ time.sleep(0.5)
 # Display sensor data
 while True:
     # v: vibration velocity | a: vibration angle | t: temperature | s: vibration displacement | f: vibration frequency
+    # print(
+    #     "vx:{} vy:{} vz:{} ax:{} ay:{} az:{} t:{} sx:{} sy:{} sz:{} fx:{} fy:{} fz:{}".format(
+    #         device.get("58"),
+    #         device.get("59"),
+    #         device.get("60"),
+    #         device.get("61"),
+    #         device.get("62"),
+    #         device.get("63"),
+    #         device.get("64"),
+    #         device.get("65"),
+    #         device.get("66"),
+    #         device.get("67"),
+    #         device.get("68"),
+    #         device.get("69"),
+    #         device.get("70"),
+    #     )
+    # )
+    # AX: Acceleration X | AY: Acceleration Y | AZ: Acceleration Z
     print(
-        "AX:{} AY:{} AZ:{} vx:{} vy:{} vz:{} ax:{} ay:{} az:{} t:{} sx:{} sy:{} sz:{} fx:{} fy:{} fz:{}".format(
+        "AX:{} AY:{} AZ:{}".format(
             device.get("52"),
             device.get("53"),
             device.get("54"),
-            device.get("58"),
-            device.get("59"),
-            device.get("60"),
-            device.get("61"),
-            device.get("62"),
-            device.get("63"),
-            device.get("64"),
-            device.get("65"),
-            device.get("66"),
-            device.get("67"),
-            device.get("68"),
-            device.get("69"),
-            device.get("70"),
         )
     )
     time.sleep(0.2)
-
 
 # Read register: read 1 register starting from 0x3A
 # device.readReg(0x3a, 1)

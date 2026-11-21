@@ -697,6 +697,15 @@ class DeviceModel:
             for i in range(int(length / 2)):
                 # Combine high and low bytes into 16-bit register value
                 value = self.TempBytes[2 * i + 3] << 8 | self.TempBytes[2 * i + 4]
+
+                # convert acceleration X,Y,Z (0x34-0x36 | 52-54) - modified
+                if 0x34 <= self.statReg <= 0x36:
+                    if value >= 32768:
+                        value -= 65536  # changed unsigned 16-bit to signed int16 - modified
+                    accel_g = (value / 32768.0) * 16.0  # converts to g value
+                    self.set(str(self.statReg), round(accel_g, 4))
+                    self.statReg += 1
+
                 # Parse vibration angle
                 if 0x3D <= self.statReg <= 0x3F:
                     value = value / 32768 * 180
@@ -804,8 +813,9 @@ class DeviceModel:
     def loopRead(self):
         print("Loop reading started")
         while self.loop:
-            self.readReg(0x34, 19)  # Able to read 19 register sequentially from 0x34 (52) to 0x46 (70)
-            time.sleep(0.2)
+            # self.readReg(0x34, 19)  # able to read 19 register sequentially from 0x34 (52) to 0x46 (70) - modified
+            self.readReg(0x34, 3)  # able to read 3 register sequentially from 0x34 (52) to 0x36 (74) - modified
+            time.sleep(0.008)
         print("Loop reading stopped")
 
     # Stop loop reading
