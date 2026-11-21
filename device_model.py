@@ -181,31 +181,52 @@ class DeviceModel:
     # Serial port listener thread
     def readDataTh(self, threadName, delay):
         print("Starting " + threadName)
-        while True:
-            # If the serial port is open
-            if self.isOpen:
-                try:
+        # while True:
+        #     # If the serial port is open
+        #     if self.isOpen:
+        #         try:
+        #             tLen = self.serialPort.inWaiting()
+        #             if tLen > 0:
+        #                 data = self.serialPort.read(tLen)
+        #                 self.onDataReceived(data)
+        #             else:
+        #                 time.sleep(  0.001)  # prevents 100% CPU usage while waiting -modified from SDK
+        #         except Exception as ex:
+        #             print(ex)
+        #     else:
+        #         time.sleep(0.1)
+        #         print("Serial port is not open")
+        #         break
+
+        # modified from SDK
+        while self.isOpen:
+            try:
+                if self.serialPort is not None and self.serialPort.is_open:
                     tLen = self.serialPort.inWaiting()
                     if tLen > 0:
                         data = self.serialPort.read(tLen)
                         self.onDataReceived(data)
                     else:
-                        time.sleep(
-                            0.001
-                        )  # prevents 100% CPU usage while waiting -modified from SDK
-                except Exception as ex:
+                        time.sleep(0.001)  # prevents 100% CPU usage while waiting -modified from SDK
+                else:
+                    break
+            except Exception as ex:
+                if self.isOpen:
                     print(ex)
-            else:
-                time.sleep(0.1)
-                print("Serial port is not open")
                 break
+        print("Serial listener stopped")
 
     # Close device
     def closeDevice(self):
-        if self.serialPort is not None:
+        # stop the loop thread first -modified from SDK
+        self.loop = False
+        self.isOpen = False
+        time.sleep(0.05)  # added delay 50ms so the thread finished reading
+
+        # then closes the serial port
+        if self.serialPort is not None and self.serialPort.is_open:
             self.serialPort.close()
             print("Port closed")
-        self.isOpen = False
         print("Device closed")
 
     # region Data Parsing

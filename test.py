@@ -54,7 +54,7 @@ hex     dec     description
 # Instantiate the device model
 # changed baud from 9600 to 115200  so that python able to collect at minimum 100 sample per second
 # change the baudrate in set_baudrate.py
-device = device_model.DeviceModel("Laptop Device", "COM7", 115200, 0x50)
+device = device_model.DeviceModel("WTVB01-485", "COM7", 115200, 0x50)
 # Open the device
 device.openDevice()
 # Start loop polling
